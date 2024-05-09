@@ -1,25 +1,30 @@
 package com.sky.service.impl;
 
+import com.github.pagehelper.PageHelper;
 import com.sky.constant.MessageConstant;
 import com.sky.constant.PasswordConstant;
 import com.sky.constant.StatusConstant;
+import com.sky.context.BaseContext;
 import com.sky.dto.EmployeeDTO;
 import com.sky.dto.EmployeeLoginDTO;
+import com.sky.dto.EmployeePageQueryDTO;
 import com.sky.entity.Employee;
-import com.sky.exception.AccountLockedException;
-import com.sky.exception.AccountNotFoundException;
-import com.sky.exception.DatabaseError;
-import com.sky.exception.PasswordErrorException;
+import com.sky.exception.*;
 import com.sky.mapper.EmployeeMapper;
+import com.sky.result.PageResult;
 import com.sky.result.Result;
 import com.sky.service.EmployeeService;
 import com.sky.utils.MD5Util;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class EmployeeServiceImpl implements EmployeeService {
@@ -72,6 +77,21 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     public Result<Object> save(EmployeeDTO employeeDTO) {
+
+        System.out.println(Thread.currentThread().getId());
+
+        Employee employee1 = employeeMapper.getByUsername(employeeDTO.getUsername());
+
+        if (employee1 != null) {
+            throw new UsernameExistException(MessageConstant.USER_EXIST);
+        }
+
+        Employee employee2 = employeeMapper.getByUsername(employeeDTO.getIdNumber());
+
+        if (employee2 != null) {
+            throw new UsernameExistException(MessageConstant.USER_EXIST);
+        }
+
         Employee employee = new Employee();
 
         BeanUtils.copyProperties(employeeDTO, employee);
@@ -83,8 +103,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setCreateTime(LocalDateTime.now());
         employee.setUpdateTime(LocalDateTime.now());
 
-        employee.setCreateUser(10L);
-        employee.setUpdateUser(10L);
+        employee.setCreateUser(BaseContext.getCurrentId());
+        employee.setUpdateUser(BaseContext.getCurrentId());
 
         int i = employeeMapper.insert(employee);
 
@@ -96,5 +116,71 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
 
     }
+
+    @Override
+    public PageResult pageQuery(EmployeePageQueryDTO employeePageQueryDTO) {
+
+        //分页查询
+        PageHelper.startPage(employeePageQueryDTO.getPage(),employeePageQueryDTO.getPageSize());
+
+        List<Employee> employees = employeeMapper.pageQuery(employeePageQueryDTO);
+
+        long total = employees.size();
+
+        //List<Employee> records = page.getContent();
+
+        return new PageResult(total, employees);
+    }
+
+    @Override
+    public int changeStatus(Integer status, Long id) {
+
+        Employee employee =  Employee.builder().id(id).status(status).build();
+
+
+//        Map<String, Object> parameters = new HashMap<>();
+//        parameters.put("status", status); // Assuming status is the new status value
+//        parameters.put("id", id); // Assuming id is the employee's id
+
+        int i = employeeMapper.update(employee);
+
+        return i;
+
+    }
+
+    @Override
+    public Result getEmpInfo(Integer id) {
+
+        Employee employee = employeeMapper.queryById(id);
+
+
+        if (employee == null) {
+            return Result.error(MessageConstant.USER_NOT_EXIST);
+        }else{
+            return Result.success(employee);
+        }
+
+    }
+
+    @Override
+    public Result updateUser(EmployeeDTO employeeDTO) {
+
+        Employee employee = new Employee();
+        BeanUtils.copyProperties(employeeDTO,employee);
+
+        employee.setUpdateTime(LocalDateTime.now());
+        employee.setUpdateUser(BaseContext.getCurrentId());
+
+        int i = employeeMapper.update(employee);
+
+        if(i != 1){
+            return Result.error(MessageConstant.UNKNOWN_ERROR);
+        }
+        else {
+            return Result.success();
+        }
+
+    }
+
 
 }
